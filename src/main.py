@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, User
+from models import db, User, Todo
 #from models import Person
 
 app = Flask(__name__)
@@ -30,14 +30,47 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
-@app.route('/user', methods=['GET'])
-def handle_hello():
+@app.route('/todos', methods=['GET'])
+def list_todos():
+    todos = Todo.query.all()
 
-    response_body = {
-        "msg": "Hello, this is your GET /user response "
-    }
+    return jsonify(list(map(lambda todo: todo.serialize(), todos))), 200
 
-    return jsonify(response_body), 200
+
+@app.route('/todos', methods=['POST'])
+def create_todo():
+    todo_content = request.get_json()
+
+    if todo_content is None:
+        raise APIException("You need to specify the request body as a json object", status_code=400)
+
+    if 'done' not in todo_content:
+        raise APIException('You need to specify the done setting', status_code=400)
+
+    if 'label' not in todo_content:
+        raise APIException('You need to specify the label info', status_code=400)
+
+    todo = Todo(label=todo_content['label'], done=bool(todo_content['done']))
+    db.session.add(todo)
+    db.session.commit()
+    return "ok", 200
+
+
+@app.route('/todos/<int:id>', methods=['GET'])
+def show_todo(id):
+    todo = Todo.query.get_or_404(id)
+
+    return jsonify(todo.serialize()), 200
+
+@app.route('/todos/<int:id>', methods=['DELETE'])
+def delete_todo(id):
+    todo = Todo.query.get_or_404(id)
+    db.session.delete(todo)
+    db.session.commit()
+
+    return "ok", 200
+
+
 
 # this only runs if `$ python src/main.py` is executed
 if __name__ == '__main__':
